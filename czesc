@@ -1,86 +1,59 @@
--- ULEPSZONY Auto-Execute dla Server Hop
+-- NAJLEPSZY Auto-Chat Bot
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
-if not _G.ServerHopExecutor then
-    _G.ServerHopExecutor = true
-    _G.lastServer = game.JobId
+if not _G.UltimateChatBot then
+    _G.UltimateChatBot = true
     
     local Players = game:GetService("Players")
     local localPlayer = Players.LocalPlayer
     
-    local function executeChatMessage()
-        -- Poczekaj aż wszystko się załaduje
-        wait(4)
-        
-        -- Sprawdź czy to nowy serwer
-        if _G.lastServer ~= game.JobId then
-            _G.lastServer = game.JobId
-            
-            -- Próbuj wysłać wiadomość przez 10 sekund
-            for i = 1, 5 do
-                wait(2)
-                
-                -- TextChatService
-                local success1 = pcall(function()
-                    game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
-                end)
-                
-                -- ReplicatedStorage
-                local success2 = pcall(function()
-                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-                end)
-                
-                if success1 or success2 then
-                    print("🎯 Wiadomość wysłana na nowym serwerze! (" .. i .. " próba)")
-                    break
-                end
-            end
-        else
-            -- Ten sam serwer, ale spróbuj wysłać
-            pcall(function()
-                game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
-            end)
+    local function sendChat()
+        if not localPlayer or not localPlayer.Character then
+            return false
         end
+        
+        -- TextChatService
+        local success1 = pcall(function()
+            game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
+        end)
+        
+        -- ReplicatedStorage
+        local success2 = pcall(function()
+            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+        end)
+        
+        return success1 or success2
     end
 
-    -- WYKONAJ OD RAZU
-    executeChatMessage()
-    
-    -- WYKRYWAJ ZMIANĘ SERWERA PRZEZ:
-    
-    -- 1. Zmianę JobId
+    -- 1. PĘTLA CO 30 SEKUND
+    spawn(function()
+        wait(10) -- Poczekaj na start
+        while true do
+            sendChat()
+            wait(30)
+        end
+    end)
+
+    -- 2. WYKRYWANIE SERVER HOP PRZEZ CHARACTER
+    localPlayer.CharacterAdded:Connect(function()
+        wait(12) -- Dłuższe czekanie na server hop
+        sendChat()
+    end)
+
+    -- 3. DODATKOWE SPRAWDZANIE CO 60 SEKUND
     spawn(function()
         while true do
-            wait(1)
-            if _G.lastServer ~= game.JobId then
-                executeChatMessage()
+            wait(60)
+            if _G.LastMessageTime and (tick() - _G.LastMessageTime) > 45 then
+                sendChat()
             end
+            _G.LastMessageTime = tick()
         end
     end)
+
+    -- START
+    wait(15)
+    sendChat()
     
-    -- 2. Nowy charakter (respawn/teleport)
-    localPlayer.CharacterAdded:Connect(function(char)
-        wait(3)
-        executeChatMessage()
-    end)
-    
-    -- 3. Gracz dołącza do gry
-    Players.PlayerAdded:Connect(function(player)
-        if player == localPlayer then
-            wait(4)
-            executeChatMessage()
-        end
-    end)
-    
-    -- 4. Periodyczne sprawdzanie
-    spawn(function()
-        while true do
-            wait(10)
-            if localPlayer.Character then
-                pcall(executeChatMessage)
-            end
-        end
-    end)
-    
-    print("🔥 AUTO-EXECUTE DZIAŁA! Będzie wysyłać przy każdym server hop!")
+    print("🔥 CHAT BOT DZIAŁA! Co 30s + Server Hop")
 end
