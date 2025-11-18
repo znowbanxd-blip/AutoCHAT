@@ -1,66 +1,86 @@
--- Zaawansowany auto-execute z TeleportService
+-- ULEPSZONY Auto-Execute dla Server Hop
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
-if not _G.autoChatSystem then
-    _G.autoChatSystem = true
-    _G.messageSent = false
+if not _G.ServerHopExecutor then
+    _G.ServerHopExecutor = true
+    _G.lastServer = game.JobId
     
-    local function sendChatMessage()
-        if not _G.messageSent then
-            _G.messageSent = true
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
+    
+    local function executeChatMessage()
+        -- Poczekaj aż wszystko się załaduje
+        wait(4)
+        
+        -- Sprawdź czy to nowy serwer
+        if _G.lastServer ~= game.JobId then
+            _G.lastServer = game.JobId
             
-            -- Opóźnienie dla pewności że gracz jest załadowany
-            wait(2)
-            
-            local function trySendMessage()
+            -- Próbuj wysłać wiadomość przez 10 sekund
+            for i = 1, 5 do
+                wait(2)
+                
                 -- TextChatService
-                if game:GetService("TextChatService") then
-                    local tcs = game:GetService("TextChatService")
-                    if tcs:FindFirstChild("TextChannels") then
-                        local channels = tcs.TextChannels
-                        if channels:FindFirstChild("RBXGeneral") then
-                            pcall(function() channels.RBXGeneral:SendAsync(message) end)
-                            return true
-                        elseif channels:FindFirstChild("General") then
-                            pcall(function() channels.General:SendAsync(message) end)
-                            return true
-                        end
-                    end
-                end
+                local success1 = pcall(function()
+                    game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
+                end)
                 
                 -- ReplicatedStorage
-                if game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") then
-                    local events = game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents
-                    if events:FindFirstChild("SayMessageRequest") then
-                        pcall(function() events.SayMessageRequest:FireServer(message, "All") end)
-                        return true
-                    end
-                end
+                local success2 = pcall(function()
+                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+                end)
                 
-                return false
+                if success1 or success2 then
+                    print("🎯 Wiadomość wysłana na nowym serwerze! (" .. i .. " próba)")
+                    break
+                end
             end
-            
-            local success = trySendMessage()
-            print(success and "✓ Auto-wiadomość wysłana!" or "✗ Błąd wysyłania auto-wiadomości")
+        else
+            -- Ten sam serwer, ale spróbuj wysłać
+            pcall(function()
+                game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
+            end)
         end
     end
+
+    -- WYKONAJ OD RAZU
+    executeChatMessage()
     
-    -- Wykonaj natychmiast
-    sendChatMessage()
+    -- WYKRYWAJ ZMIANĘ SERWERA PRZEZ:
     
-    -- Reset flagi przy nowym charakterze (nowy serwer/spawn)
-    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
-        _G.messageSent = false
-        wait(3)
-        sendChatMessage()
+    -- 1. Zmianę JobId
+    spawn(function()
+        while true do
+            wait(1)
+            if _G.lastServer ~= game.JobId then
+                executeChatMessage()
+            end
+        end
     end)
     
-    -- Nasłuchiwanie teleportacji
-    if game:GetService("TeleportService") then
-        game:GetService("TeleportService").TeleportInit:Connect(function()
-            _G.messageSent = false
-        end)
-    end
+    -- 2. Nowy charakter (respawn/teleport)
+    localPlayer.CharacterAdded:Connect(function(char)
+        wait(3)
+        executeChatMessage()
+    end)
     
-    print("🔄 Auto-chat system AKTYWNY - działa przy każdej zmianie serwera!")
+    -- 3. Gracz dołącza do gry
+    Players.PlayerAdded:Connect(function(player)
+        if player == localPlayer then
+            wait(4)
+            executeChatMessage()
+        end
+    end)
+    
+    -- 4. Periodyczne sprawdzanie
+    spawn(function()
+        while true do
+            wait(10)
+            if localPlayer.Character then
+                pcall(executeChatMessage)
+            end
+        end
+    end)
+    
+    print("🔥 AUTO-EXECUTE DZIAŁA! Będzie wysyłać przy każdym server hop!")
 end
