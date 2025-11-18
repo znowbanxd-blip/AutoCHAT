@@ -1,65 +1,91 @@
--- Script do executora Roblox - Chat Message
+-- Auto-execute script przy zmianie serwera
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
--- Sprawdzenie dostępnych funkcji czatu
-if game:GetService("Players").LocalPlayer then
-    local player = game:GetService("Players").LocalPlayer
+-- Globalna flaga dla wszystkich serwerów
+if not _G.autoChatExecuted then
+    _G.autoChatExecuted = true
     
-    -- Metoda 1: Przez ReplicatedStorage (nowsze wersje Roblox)
-    if game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") then
-        local chatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
-        
-        if chatEvents:FindFirstChild("SayMessageRequest") then
-            -- Użycie SayMessageRequest
-            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-        elseif chatEvents:FindFirstChild("SendMessage") then
-            -- Alternatywna metoda
-            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SendMessage:FireServer(message, "All")
-        end
-    end
-    
-    -- Metoda 2: Bezpośrednio przez Player (starsze metody)
-    if player:FindFirstChild("PlayerGui") then
-        local playerGui = player:FindFirstChild("PlayerGui")
-        if playerGui:FindFirstChild("Chat") then
-            local chat = playerGui.Chat
-            if chat:FindFirstChild("Frame") and chat.Frame:FindFirstChild("ChatBar") then
-                -- Symulacja wpisywania wiadomości
-                game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
+    -- Funkcja wysyłająca wiadomość
+    local function sendChatMessage()
+        if not _G.messageSent then
+            _G.messageSent = true
+            
+            -- Metoda 1: Przez TextChatService (najnowsze wersje Roblox)
+            local function sendMessage()
+                if game:GetService("TextChatService") then
+                    local textChatService = game:GetService("TextChatService")
+                    if textChatService:FindFirstChild("TextChannels") then
+                        local channels = textChatService.TextChannels
+                        if channels:FindFirstChild("RBXGeneral") then
+                            channels.RBXGeneral:SendAsync(message)
+                            return true
+                        elseif channels:FindFirstChild("General") then
+                            channels.General:SendAsync(message)
+                            return true
+                        end
+                    end
+                end
+                return false
+            end
+            
+            -- Metoda 2: Przez ReplicatedStorage (starsze wersje)
+            local function sendMessageOld()
+                if game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") then
+                    local chatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+                    
+                    if chatEvents:FindFirstChild("SayMessageRequest") then
+                        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+                        return true
+                    elseif chatEvents:FindFirstChild("SendMessage") then
+                        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SendMessage:FireServer(message, "All")
+                        return true
+                    end
+                end
+                return false
+            end
+            
+            -- Próba wysłania wiadomości
+            local success = sendMessage()
+            
+            if not success then
+                success = sendMessageOld()
+            end
+            
+            -- Potwierdzenie wykonania
+            if success then
+                print("✓ Auto-wiadomość wysłana: " .. message)
+            else
+                warn("✗ Nie udało się wysłać auto-wiadomości")
             end
         end
     end
     
-    -- Metoda 3: Dla TextChatService (najnowsze wersje Roblox)
-    if game:GetService("TextChatService") then
-        local textChatService = game:GetService("TextChatService")
-        if textChatService:FindFirstChild("TextChannels") then
-            local channels = textChatService.TextChannels
-            if channels:FindFirstChild("RBXGeneral") then
-                channels.RBXGeneral:SendAsync(message)
-            elseif channels:FindFirstChild("General") then
-                channels.General:SendAsync(message)
-            end
-        end
-    end
+    -- Wysłanie wiadomości natychmiast po wejściu
+    sendChatMessage()
     
-    -- Potwierdzenie wykonania
-    print("Wiadomość wysłana: " .. message)
-else
-    warn("Nie znaleziono gracza!")
-end
-
--- Dodatkowe zabezpieczenie - opóźnienie i ponowienie próby
-wait(1)
-
--- Alternatywna metoda z wykorzystaniem zdarzeń
-local success, error = pcall(function()
-    game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
-end)
-
-if not success then
-    -- Ostateczna próba przez ReplicatedStorage
-    pcall(function()
-        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+    -- Nasłuchiwanie zmiany serwera przez PlayerAdded
+    game:GetService("Players").PlayerAdded:Connect(function(player)
+        if player == game:GetService("Players").LocalPlayer then
+            wait(2) -- Czekaj aż gracz się załaduje
+            _G.messageSent = false -- Reset flagi dla nowego serwera
+            sendChatMessage()
+        end
     end)
+    
+    -- Alternatywna metoda - nasłuchiwanie zmiany miejsca
+    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
+        wait(3) -- Czekaj aż postać się spawnie
+        _G.messageSent = false -- Reset flagi dla nowego spawnu
+        sendChatMessage()
+    end)
+    
+    -- Dodatkowe zabezpieczenie - okresowe sprawdzanie
+    while true do
+        wait(10) -- Sprawdzaj co 10 sekund
+        if not _G.messageSent then
+            sendChatMessage()
+        end
+    end
+else
+    print("ℹ Auto-chat jest już aktywny!")
 end
