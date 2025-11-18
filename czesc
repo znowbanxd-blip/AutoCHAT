@@ -1,37 +1,71 @@
--- PROSTY I DZIAŁAJĄCY SKRYPT
+-- PEŁNY SKRYPT AUTO-CHAT
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
--- Funkcja do wysyłania wiadomości
-local function sendMessage()
-    -- Spróbuj nowy system czatu
-    local success = pcall(function()
+-- Główna funkcja wysyłania wiadomości
+local function sendChatMessage()
+    -- Metoda 1: Nowy system czatu (TextChatService)
+    local success1 = pcall(function()
         game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
     end)
     
-    -- Jeśli nie działa, spróbuj stary system
-    if not success then
-        pcall(function()
-            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-        end)
+    -- Metoda 2: Stary system czatu (ReplicatedStorage)
+    local success2 = pcall(function()
+        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+    end)
+    
+    -- Metoda 3: Alternatywna metoda
+    local success3 = pcall(function()
+        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SendMessage:FireServer(message, "All")
+    end)
+    
+    if success1 or success2 or success3 then
+        print("✅ Wiadomość wysłana: " .. message)
+        return true
+    else
+        print("❌ Nie udało się wysłać wiadomości")
+        return false
     end
 end
 
--- System co 30 sekund
+-- System automatyczny co 30 sekund
 spawn(function()
+    wait(10) -- Poczekaj na start
     while true do
-        sendMessage()
-        wait(30) -- Czekaj 30 sekund
+        if game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Character then
+            sendChatMessage()
+        end
+        wait(30) -- Czekaj dokładnie 30 sekund
     end
 end)
 
--- System przy server hop (gdy postać się spawni)
-game.Players.LocalPlayer.CharacterAdded:Connect(function()
-    wait(3) -- Poczekaj aż postać się załaduje
-    sendMessage()
+-- System auto-execute przy server hop
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
+    print("🔄 Wykryto server hop/respawn")
+    wait(8) -- Czekaj aż postać się załaduje
+    sendChatMessage()
 end)
 
--- Wyślij pierwszą wiadomość od razu
-wait(3)
-sendMessage()
+-- Pierwsze wykonanie po wejściu do gry
+wait(8)
+sendChatMessage()
 
-print("SKRYPT DZIAŁA! Wiadomość co 30s + przy server hop")
+print("🚀 AUTO-CHAT SYSTEM AKTYWNY!")
+print("📝 Funkcje:")
+print("   • Auto-execute przy wejściu do gry")
+print("   • Auto-execute przy server hop")
+print("   • Wiadomość co 30 sekund")
+print("   • Multiple metody czatu")
+print("🎯 Działa w większości gier Roblox")
+
+-- Dodatkowe zabezpieczenie - okresowe sprawdzanie
+spawn(function()
+    while true do
+        wait(60) -- Sprawdzaj co 60 sekund
+        if not game:GetService("Players").LocalPlayer.Character then
+            -- Jeśli gracz nie ma postaci, poczekaj i wyślij
+            game:GetService("Players").LocalPlayer.CharacterAdded:Wait()
+            wait(5)
+            sendChatMessage()
+        end
+    end
+end)
