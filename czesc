@@ -1,125 +1,159 @@
--- ULTRA Auto-Chat System (100% DZIAŁA)
+-- PROFESJONALNY Auto-Chat System
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
-if not _G.UltraChatSystem then
-    _G.UltraChatSystem = true
-    _G.active = true
+if not _G.ProChatSystem then
+    _G.ProChatSystem = true
+    _G.lastJobId = game.JobId
+    _G.lastCharacter = nil
     
     local Players = game:GetService("Players")
     local localPlayer = Players.LocalPlayer
     local RunService = game:GetService("RunService")
     
-    -- GŁÓWNA FUNKCJA WYSYŁANIA
-    local function ultraSendMessage()
-        if not _G.active or not localPlayer or not localPlayer.Character then
+    -- FUNKCJA WYSYŁANIA WIADOMOŚCI
+    local function sendChatMessage()
+        if not localPlayer or not localPlayer.Character then
             return false
         end
         
-        -- Próbuj różne metody
-        local methods = {
-            function()
-                game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
-            end,
-            function()
-                game:GetService("TextChatService").TextChannels.General:SendAsync(message)
-            end,
-            function()
-                game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-            end,
-            function()
-                game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SendMessage:FireServer(message, "All")
-            end
-        }
+        local success = false
         
-        for i, method in ipairs(methods) do
-            local success = pcall(method)
-            if success then
-                print("🎯 Wiadomość wysłana (metoda " .. i .. ")")
-                return true
-            end
+        -- TextChatService (nowy system)
+        if not success then
+            success = pcall(function()
+                local tcs = game:GetService("TextChatService")
+                if tcs:FindFirstChild("TextChannels") then
+                    local channels = tcs.TextChannels
+                    if channels:FindFirstChild("RBXGeneral") then
+                        channels.RBXGeneral:SendAsync(message)
+                    elseif channels:FindFirstChild("General") then
+                        channels.General:SendAsync(message)
+                    end
+                end
+            end)
         end
         
-        return false
+        -- DefaultChatSystemChatEvents (stary system)
+        if not success then
+            success = pcall(function()
+                local events = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents")
+                if events:FindFirstChild("SayMessageRequest") then
+                    events.SayMessageRequest:FireServer(message, "All")
+                elseif events:FindFirstChild("SendMessage") then
+                    events.SendMessage:FireServer(message, "All")
+                end
+            end)
+        end
+        
+        if success then
+            print("✅ Wiadomość wysłana: " .. message)
+        else
+            warn("❌ Nie udało się wysłać wiadomości")
+        end
+        
+        return success
     end
     
-    -- MEGA WYKRYWANIE SERVER HOP
-    local function megaServerHopDetection()
-        local lastJob = game.JobId
-        local lastChar = localPlayer.Character
-        
-        -- Detekcja JobID
+    -- SYSTEM WYKRYWANIA SERVER HOP
+    local function initializeServerHopDetection()
+        -- 1. WYKRYWANIE PO ZMIANIE JOB ID
         spawn(function()
-            while _G.active do
-                RunService.Heartbeat:Wait()
-                if game.JobId ~= lastJob then
-                    lastJob = game.JobId
-                    print("🌍 SERVER HOP WYKRYTY!")
-                    wait(15) -- Długie czekanie na załadowanie
-                    ultraSendMessage()
+            while RunService.Heartbeat:Wait() do
+                if _G.lastJobId ~= game.JobId then
+                    _G.lastJobId = game.JobId
+                    print("🔄 Wykryto Server Hop! JobID: " .. game.JobId)
+                    
+                    -- Poczekaj aż gracz się załaduje
+                    wait(8)
+                    sendChatMessage()
                 end
             end
         end)
         
-        -- Detekcja Character
-        localPlayer.CharacterAdded:Connect(function(char)
-            print("🔄 Nowy charakter - Server Hop?")
-            wait(12)
-            ultraSendMessage()
+        -- 2. WYKRYWANIE PO NOWYM CHARAKTERZE
+        localPlayer.CharacterAdded:Connect(function(newCharacter)
+            print("🎯 Nowy charakter wykryty")
+            _G.lastCharacter = newCharacter
             
-            -- Potwierdzenie po dodatkowym czasie
+            -- Czekaj aż postać będzie w pełni załadowana
             wait(10)
-            ultraSendMessage()
+            sendChatMessage()
+            
+            -- Dodatkowe zabezpieczenie - sprawdź czy to server hop
+            if _G.lastJobId ~= game.JobId then
+                _G.lastJobId = game.JobId
+                wait(5)
+                sendChatMessage()
+            end
         end)
         
-        -- Detekcja przez PlayerGui
-        localPlayer:GetPropertyChangedSignal("PlayerGui"):Connect(function()
-            print("📱 PlayerGui zmieniony")
-            wait(8)
-            ultraSendMessage()
-        end)
-    end
-    
-    -- PERFEKCYJNY TIMER 30s
-    local function perfect30sTimer()
-        spawn(function()
-            local nextSend = tick() + 30
-            while _G.active do
-                local now = tick()
-                if now >= nextSend then
-                    if localPlayer and localPlayer.Character then
-                        ultraSendMessage()
-                    end
-                    nextSend = now + 30
-                end
-                wait(1) -- Sprawdzaj co sekundę
+        -- 3. WYKRYWANIE PO TELEPORTACJI
+        if game:GetService("TeleportService") then
+            game:GetService("TeleportService").LocalPlayerTeleporting:Connect(function(teleportType)
+                print("🚀 Teleportowanie: " .. tostring(teleportType))
+                _G.isTeleporting = true
+            end)
+        end
+        
+        -- 4. WYKRYWANIE PO DOŁĄCZENIU GRACZA
+        Players.PlayerAdded:Connect(function(player)
+            if player == localPlayer then
+                print("👤 Gracz dołączył do serwera")
+                wait(12)
+                sendChatMessage()
             end
         end)
     end
     
-    -- START SYSTEMU
-    print("🔥 ULTRA SYSTEM INICJALIZACJA...")
-    wait(10) -- Długie czekanie na załadowanie gry
+    -- SYSTEM CO 30 SEKUND
+    local function initialize30SecondSystem()
+        spawn(function()
+            local lastSend = 0
+            while RunService.Heartbeat:Wait() do
+                local currentTime = tick()
+                if currentTime - lastSend >= 30 then
+                    if localPlayer and localPlayer.Character then
+                        sendChatMessage()
+                        lastSend = currentTime
+                        print("⏰ Next message in 30 seconds...")
+                    end
+                else
+                    local waitTime = 30 - (currentTime - lastSend)
+                    if waitTime > 0 then
+                        wait(waitTime)
+                    end
+                end
+            end
+        end)
+    end
     
-    megaServerHopDetection()
-    perfect30sTimer()
+    -- INICJALIZACJA SYSTEMU
+    print("🚀 Inicjalizacja Profesjonalnego Systemu Chat...")
     
-    -- Pierwsze uruchomienie
+    -- Poczekaj aż wszystko się załaduje
+    wait(5)
+    
+    -- Uruchom systemy
+    initializeServerHopDetection()
+    initialize30SecondSystem()
+    
+    -- Pierwsze wysłanie
     if localPlayer.Character then
-        ultraSendMessage()
+        wait(3)
+        sendChatMessage()
     else
         localPlayer.CharacterAdded:Wait()
-        wait(8)
-        ultraSendMessage()
+        wait(5)
+        sendChatMessage()
     end
     
-    print("💯 ULTRA SYSTEM AKTYWNY!")
-    print("✅ 100% gwarancja działania przy server hop")
-    print("✅ Dokładnie co 30 sekund")
-    print("✅ Wiele metod wykrywania")
-    
-    -- Zabezpieczenie na przyszłość
-    _G.stopChatSystem = function()
-        _G.active = false
-        print("🛑 System zatrzymany")
-    end
+    print("🎉 PROFESJONALNY SYSTEM CHAT AKTYWNY!")
+    print("📝 Funkcje:")
+    print("   ✅ Auto-execute przy server hop")
+    print("   ✅ Wiadomości co 30 sekund")
+    print("   ✅ Wykrywanie zmiany JobID")
+    print("   ✅ Wykrywanie nowego charakteru")
+    print("   ✅ Wykrywanie teleportacji")
+else
+    print("ℹ System już działa!")
 end
