@@ -1,159 +1,37 @@
--- PROFESJONALNY Auto-Chat System
+-- PROSTY I DZIAŁAJĄCY SKRYPT
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
-if not _G.ProChatSystem then
-    _G.ProChatSystem = true
-    _G.lastJobId = game.JobId
-    _G.lastCharacter = nil
+-- Funkcja do wysyłania wiadomości
+local function sendMessage()
+    -- Spróbuj nowy system czatu
+    local success = pcall(function()
+        game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(message)
+    end)
     
-    local Players = game:GetService("Players")
-    local localPlayer = Players.LocalPlayer
-    local RunService = game:GetService("RunService")
-    
-    -- FUNKCJA WYSYŁANIA WIADOMOŚCI
-    local function sendChatMessage()
-        if not localPlayer or not localPlayer.Character then
-            return false
-        end
-        
-        local success = false
-        
-        -- TextChatService (nowy system)
-        if not success then
-            success = pcall(function()
-                local tcs = game:GetService("TextChatService")
-                if tcs:FindFirstChild("TextChannels") then
-                    local channels = tcs.TextChannels
-                    if channels:FindFirstChild("RBXGeneral") then
-                        channels.RBXGeneral:SendAsync(message)
-                    elseif channels:FindFirstChild("General") then
-                        channels.General:SendAsync(message)
-                    end
-                end
-            end)
-        end
-        
-        -- DefaultChatSystemChatEvents (stary system)
-        if not success then
-            success = pcall(function()
-                local events = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents")
-                if events:FindFirstChild("SayMessageRequest") then
-                    events.SayMessageRequest:FireServer(message, "All")
-                elseif events:FindFirstChild("SendMessage") then
-                    events.SendMessage:FireServer(message, "All")
-                end
-            end)
-        end
-        
-        if success then
-            print("✅ Wiadomość wysłana: " .. message)
-        else
-            warn("❌ Nie udało się wysłać wiadomości")
-        end
-        
-        return success
-    end
-    
-    -- SYSTEM WYKRYWANIA SERVER HOP
-    local function initializeServerHopDetection()
-        -- 1. WYKRYWANIE PO ZMIANIE JOB ID
-        spawn(function()
-            while RunService.Heartbeat:Wait() do
-                if _G.lastJobId ~= game.JobId then
-                    _G.lastJobId = game.JobId
-                    print("🔄 Wykryto Server Hop! JobID: " .. game.JobId)
-                    
-                    -- Poczekaj aż gracz się załaduje
-                    wait(8)
-                    sendChatMessage()
-                end
-            end
-        end)
-        
-        -- 2. WYKRYWANIE PO NOWYM CHARAKTERZE
-        localPlayer.CharacterAdded:Connect(function(newCharacter)
-            print("🎯 Nowy charakter wykryty")
-            _G.lastCharacter = newCharacter
-            
-            -- Czekaj aż postać będzie w pełni załadowana
-            wait(10)
-            sendChatMessage()
-            
-            -- Dodatkowe zabezpieczenie - sprawdź czy to server hop
-            if _G.lastJobId ~= game.JobId then
-                _G.lastJobId = game.JobId
-                wait(5)
-                sendChatMessage()
-            end
-        end)
-        
-        -- 3. WYKRYWANIE PO TELEPORTACJI
-        if game:GetService("TeleportService") then
-            game:GetService("TeleportService").LocalPlayerTeleporting:Connect(function(teleportType)
-                print("🚀 Teleportowanie: " .. tostring(teleportType))
-                _G.isTeleporting = true
-            end)
-        end
-        
-        -- 4. WYKRYWANIE PO DOŁĄCZENIU GRACZA
-        Players.PlayerAdded:Connect(function(player)
-            if player == localPlayer then
-                print("👤 Gracz dołączył do serwera")
-                wait(12)
-                sendChatMessage()
-            end
+    -- Jeśli nie działa, spróbuj stary system
+    if not success then
+        pcall(function()
+            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
         end)
     end
-    
-    -- SYSTEM CO 30 SEKUND
-    local function initialize30SecondSystem()
-        spawn(function()
-            local lastSend = 0
-            while RunService.Heartbeat:Wait() do
-                local currentTime = tick()
-                if currentTime - lastSend >= 30 then
-                    if localPlayer and localPlayer.Character then
-                        sendChatMessage()
-                        lastSend = currentTime
-                        print("⏰ Next message in 30 seconds...")
-                    end
-                else
-                    local waitTime = 30 - (currentTime - lastSend)
-                    if waitTime > 0 then
-                        wait(waitTime)
-                    end
-                end
-            end
-        end)
-    end
-    
-    -- INICJALIZACJA SYSTEMU
-    print("🚀 Inicjalizacja Profesjonalnego Systemu Chat...")
-    
-    -- Poczekaj aż wszystko się załaduje
-    wait(5)
-    
-    -- Uruchom systemy
-    initializeServerHopDetection()
-    initialize30SecondSystem()
-    
-    -- Pierwsze wysłanie
-    if localPlayer.Character then
-        wait(3)
-        sendChatMessage()
-    else
-        localPlayer.CharacterAdded:Wait()
-        wait(5)
-        sendChatMessage()
-    end
-    
-    print("🎉 PROFESJONALNY SYSTEM CHAT AKTYWNY!")
-    print("📝 Funkcje:")
-    print("   ✅ Auto-execute przy server hop")
-    print("   ✅ Wiadomości co 30 sekund")
-    print("   ✅ Wykrywanie zmiany JobID")
-    print("   ✅ Wykrywanie nowego charakteru")
-    print("   ✅ Wykrywanie teleportacji")
-else
-    print("ℹ System już działa!")
 end
+
+-- System co 30 sekund
+spawn(function()
+    while true do
+        sendMessage()
+        wait(30) -- Czekaj 30 sekund
+    end
+end)
+
+-- System przy server hop (gdy postać się spawni)
+game.Players.LocalPlayer.CharacterAdded:Connect(function()
+    wait(3) -- Poczekaj aż postać się załaduje
+    sendMessage()
+end)
+
+-- Wyślij pierwszą wiadomość od razu
+wait(3)
+sendMessage()
+
+print("SKRYPT DZIAŁA! Wiadomość co 30s + przy server hop")
