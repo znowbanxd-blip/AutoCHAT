@@ -1,91 +1,66 @@
--- Auto-execute script przy zmianie serwera
+-- Zaawansowany auto-execute z TeleportService
 local message = "1M M0n3y & Aut0 H3r3 /eGVFBbDcm3"
 
--- Globalna flaga dla wszystkich serwerów
-if not _G.autoChatExecuted then
-    _G.autoChatExecuted = true
+if not _G.autoChatSystem then
+    _G.autoChatSystem = true
+    _G.messageSent = false
     
-    -- Funkcja wysyłająca wiadomość
     local function sendChatMessage()
         if not _G.messageSent then
             _G.messageSent = true
             
-            -- Metoda 1: Przez TextChatService (najnowsze wersje Roblox)
-            local function sendMessage()
+            -- Opóźnienie dla pewności że gracz jest załadowany
+            wait(2)
+            
+            local function trySendMessage()
+                -- TextChatService
                 if game:GetService("TextChatService") then
-                    local textChatService = game:GetService("TextChatService")
-                    if textChatService:FindFirstChild("TextChannels") then
-                        local channels = textChatService.TextChannels
+                    local tcs = game:GetService("TextChatService")
+                    if tcs:FindFirstChild("TextChannels") then
+                        local channels = tcs.TextChannels
                         if channels:FindFirstChild("RBXGeneral") then
-                            channels.RBXGeneral:SendAsync(message)
+                            pcall(function() channels.RBXGeneral:SendAsync(message) end)
                             return true
                         elseif channels:FindFirstChild("General") then
-                            channels.General:SendAsync(message)
+                            pcall(function() channels.General:SendAsync(message) end)
                             return true
                         end
                     end
                 end
-                return false
-            end
-            
-            -- Metoda 2: Przez ReplicatedStorage (starsze wersje)
-            local function sendMessageOld()
+                
+                -- ReplicatedStorage
                 if game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") then
-                    local chatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
-                    
-                    if chatEvents:FindFirstChild("SayMessageRequest") then
-                        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-                        return true
-                    elseif chatEvents:FindFirstChild("SendMessage") then
-                        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SendMessage:FireServer(message, "All")
+                    local events = game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents
+                    if events:FindFirstChild("SayMessageRequest") then
+                        pcall(function() events.SayMessageRequest:FireServer(message, "All") end)
                         return true
                     end
                 end
+                
                 return false
             end
             
-            -- Próba wysłania wiadomości
-            local success = sendMessage()
-            
-            if not success then
-                success = sendMessageOld()
-            end
-            
-            -- Potwierdzenie wykonania
-            if success then
-                print("✓ Auto-wiadomość wysłana: " .. message)
-            else
-                warn("✗ Nie udało się wysłać auto-wiadomości")
-            end
+            local success = trySendMessage()
+            print(success and "✓ Auto-wiadomość wysłana!" or "✗ Błąd wysyłania auto-wiadomości")
         end
     end
     
-    -- Wysłanie wiadomości natychmiast po wejściu
+    -- Wykonaj natychmiast
     sendChatMessage()
     
-    -- Nasłuchiwanie zmiany serwera przez PlayerAdded
-    game:GetService("Players").PlayerAdded:Connect(function(player)
-        if player == game:GetService("Players").LocalPlayer then
-            wait(2) -- Czekaj aż gracz się załaduje
-            _G.messageSent = false -- Reset flagi dla nowego serwera
-            sendChatMessage()
-        end
-    end)
-    
-    -- Alternatywna metoda - nasłuchiwanie zmiany miejsca
-    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
-        wait(3) -- Czekaj aż postać się spawnie
-        _G.messageSent = false -- Reset flagi dla nowego spawnu
+    -- Reset flagi przy nowym charakterze (nowy serwer/spawn)
+    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+        _G.messageSent = false
+        wait(3)
         sendChatMessage()
     end)
     
-    -- Dodatkowe zabezpieczenie - okresowe sprawdzanie
-    while true do
-        wait(10) -- Sprawdzaj co 10 sekund
-        if not _G.messageSent then
-            sendChatMessage()
-        end
+    -- Nasłuchiwanie teleportacji
+    if game:GetService("TeleportService") then
+        game:GetService("TeleportService").TeleportInit:Connect(function()
+            _G.messageSent = false
+        end)
     end
-else
-    print("ℹ Auto-chat jest już aktywny!")
+    
+    print("🔄 Auto-chat system AKTYWNY - działa przy każdej zmianie serwera!")
 end
